@@ -10,6 +10,8 @@ Wenn du das nicht weißt, ist das hier eh uninteressant für dich ;)
 
 ## Wos isch des?
 
+![Screenshot eines Eintragsmenüs](screenshot.jpg)
+
 PimpMyIBSEList ist ein Tampermonkey/Violetmonkey User Script, mit dem die IBSE-Liste eine Komfortfunktion gewinnt, nämlich das persönliche Klassifizieren von Listeneinträgen. Heißt auf Deutsch: man kann jedem Listeneintrag einen Status zuweisen, darunter die eigene Priorität von 1 bis 3, ein "hab ich schon" oder ein "Ignorieren".
 
 Die vorgenommene Klassifizierung ist dabei innerhalb des Webbrowsers bzw. Webbrowser-Profils persistent, d.h. sie wird ähnlich einem Cookie lokal gespeichert und bleibt somit auch bei folgenden Aufrufen der Liste erhalten (es sei denn man lässt beim Browser beenden automatisch alle Websitedaten löschen).
