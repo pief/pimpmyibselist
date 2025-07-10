@@ -4,6 +4,8 @@
 // @version      2025-07-10
 // @description  Erweitert die IBSE-Liste um Buttons zur persönlichen Klassifizierung von Listeneinträgen
 // @author       Pieter Hollants
+// @copyright    2025 Pieter Hollants, License: GPL-3.0
+// @website      https://github.com/pief/pimpmyibselist
 // @match        https://www.ibse.de/liste/view_liste.php
 // ==/UserScript==
 
