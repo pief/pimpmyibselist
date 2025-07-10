@@ -6,6 +6,8 @@
 // @author       Pieter Hollants
 // @copyright    2025 Pieter Hollants, License: GPL-3.0
 // @website      https://github.com/pief/pimpmyibselist
+// @updateURL    https://github.com/pief/pimpmyibselist/raw/refs/heads/main/PimpMyIBSEList.user.js
+// @downloadURL  https://github.com/pief/pimpmyibselist/raw/refs/heads/main/PimpMyIBSEList.user.js
 // @match        https://www.ibse.de/liste/view_liste.php
 // ==/UserScript==
 
