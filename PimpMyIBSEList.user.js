@@ -309,6 +309,11 @@
             td.classList.add(selectedState);
         });
 
+        // Sofern der Zustand des Listeneintrags nicht "unbehandelt" ist, wird ein eventuell vorhandener gelber Hintergrund entfernt
+        if (selectedState !== 'unchecked') {
+            row.classList.remove('mod-row');
+        }
+
         // Der Zustands des Buttons wird außerdem mittels der Zustandsklasse persistiert
         state.set(row, selectedState);
     }
