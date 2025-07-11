@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PimpMyIBSEList
 // @namespace    https://www.hollants.com
-// @version      2025-07-10
+// @version      2025-07-11
 // @description  Erweitert die IBSE-Liste um Buttons zur persönlichen Klassifizierung von Listeneinträgen
 // @author       Pieter Hollants
 // @copyright    2025 Pieter Hollants, License: GPL-3.0
