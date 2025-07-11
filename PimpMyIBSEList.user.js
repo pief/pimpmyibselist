@@ -33,8 +33,8 @@
             --prio1-color: #d90e00;
             --prio2-color: #fca80a;
             --prio3-color: #755400;
-            --done-color: #77b57a;
-            --ignore-color: #6e1200;
+            --done-color: #a7e5a7;
+            --ignore-color: #ffc0cb;
         }
 
         /* Styling für die Zellen der neuen Buttonspalte: horizontal und vertikal zentriert und Mindestabstände zu den umgebenden Tabellenlinien */
