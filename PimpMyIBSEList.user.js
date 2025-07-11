@@ -136,31 +136,36 @@
         }
 
         /* Styling der restlichen Zellen in der Zeile eines Prio1 Listeneintrags */
-        table tr:not(:first-child) td.prio1 {
+        table tr:not(:first-child) td.prio1,
+        table tr:not(:first-child) td.prio1 a {
             color: var(--prio1-color);
             font-style: italic;
         }
 
         /* Styling der restlichen Zellen in der Zeile eines Prio2 Listeneintrags */
-        table tr:not(:first-child) td.prio2 {
+        table tr:not(:first-child) td.prio2,
+        table tr:not(:first-child) td.prio2 a {
             color: var(--prio2-color);
             font-style: italic;
         }
 
         /* Styling der restlichen Zellen in der Zeile eines Prio3 Listeneintrags */
-        table tr:not(:first-child) td.prio3 {
+        table tr:not(:first-child) td.prio3,
+        table tr:not(:first-child) td.prio3 a {
             color: var(--prio3-color);
             font-style: italic;
         }
 
         /* Styling der restlichen Zellen in der Zeile eines erledigten Listeneintrags */
-        table tr:not(:first-child) td.done {
+        table tr:not(:first-child) td.done,
+        table tr:not(:first-child) td.done a {
             color: var(--done-color);
             text-decoration: line-through;
         }
 
         /* Styling der restlichen Zellen in der Zeile eines ignorierten Listeneintrags */
-        table tr:not(:first-child) td.ignore {
+        table tr:not(:first-child) td.ignore,
+        table tr:not(:first-child) td.ignore a {
             color: var(--ignore-color);
             text-decoration: line-through;
         }
