@@ -1,18 +1,43 @@
 // ==UserScript==
 // @name         PimpMyIBSEList
 // @namespace    https://www.hollants.com
-// @version      2025-07-11
+// @version      2025-07-21
 // @description  Erweitert die IBSE-Liste um Buttons zur persönlichen Klassifizierung von Listeneinträgen
 // @author       Pieter Hollants
 // @copyright    2025 Pieter Hollants, License: GPL-3.0
 // @website      https://github.com/pief/pimpmyibselist
 // @updateURL    https://github.com/pief/pimpmyibselist/raw/refs/heads/main/PimpMyIBSEList.user.js
 // @downloadURL  https://github.com/pief/pimpmyibselist/raw/refs/heads/main/PimpMyIBSEList.user.js
+// @match        https://ibse.de/
+// @match        https://www.ibse.de/
+// @match        https://ibse.de/liste/view_liste.php
 // @match        https://www.ibse.de/liste/view_liste.php
 // ==/UserScript==
 
 (function() {
     'use strict';
+
+     let localStorageKey_UserHash = 'ibse_user_hash';
+     let localStorageKey_ListState = 'ibse_liste_state';
+
+    /*
+     * Erzeugt einen achtstelligen Hash des übergebenen Strings.
+     *
+     * Ein Hash ist quasi ein verkürzter Fingerabdruck, aus dem nicht der ursprüngliche String rekonstruiert werden kann.
+     * Eigenimplementation, weil JavaScript selbst so etwas nicht mitbringt.
+     *
+     * @param {string} str Der String, für den der Hash erzeugt werden soll.
+     *
+     * @return {string} Der Hash des Strings.
+     */
+    function hashString(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = (hash << 5) - hash + char;
+        }
+        return (hash >>> 0).toString(36).padStart(7, '0');
+    }
 
     // Definierte Zustände für Listeneinträge, bestehend aus Label fürs Popup-Menü und zugehöriger CSS-Klasse.
     // Achtung: Es reicht bei Änderungswünschen nicht aus, diese Liste zu modifizieren, es gibt noch andere Stellen wie z.B. CSS-Regeln.
@@ -169,21 +194,18 @@
             color: var(--ignore-color);
             text-decoration: line-through;
         }
-`
+        `
 
     /**
      * Persistierter Speicher für den Zustand von Listeneinträgen.
      */
     class State extends Map {
-        // Der Schlüssel im localStorage, unter dem der Zeilenzustand persistiert werden
-        static #localStorageKey = 'ibse_liste_state';
-
         constructor() {
             // Zunächst die Map leer initialisieren
             super()
 
             // Den Gesamtstate aus dem localStorage des Browsers restaurieren
-            const raw = localStorage.getItem(State.#localStorageKey);
+            const raw = localStorage.getItem(localStorageKey_ListState);
             const parsed = raw ? JSON.parse(raw) : {};
 
             // Zum Setzen muss Map.set() und nicht State.set() verwendet werden, da State.set() persistiert
@@ -222,7 +244,7 @@
             super.set(key, value);
 
             // Wir persistieren direkt nach jedem Setzen
-            localStorage.setItem(State.#localStorageKey, JSON.stringify(Object.fromEntries(this.entries())));
+            localStorage.setItem(localStorageKey_ListState, JSON.stringify(Object.fromEntries(this.entries())));
 
             return this;
         }
@@ -241,13 +263,8 @@
             .map(td => td.textContent.trim())
             .join('\t');
 
-            // ...und durch eine eigene Hashfunktion gejagt, da Javascript keine eingebaute hat.
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = (hash << 5) - hash + char;
-            }
-            return (hash >>> 0).toString(36).padStart(7, '0');
+            // ...und durch die eigene Hashfunktion gejagt.
+            return hashString(str);
         }
     }
 
@@ -289,11 +306,11 @@
     }
 
     /**
-     * Aktualisiert einen Listeneintrag in Abhängigkeit des Zustandsbuttons in der ersten Spalte.
-     *
-     * @param {HTMLTableRowElement} row Der zu aktualisierende Listeneintrag.
-     * @param {State} state Die zur Persistierung der Eintragszustände zu verwendende Zustandsklasse
-     */
+      * Aktualisiert einen Listeneintrag in Abhängigkeit des Zustandsbuttons in der ersten Spalte.
+      *
+      * @param {HTMLTableRowElement} row Der zu aktualisierende Listeneintrag.
+      * @param {State} state Die zur Persistierung der Eintragszustände zu verwendende Zustandsklasse
+      */
     function updateRowStyle(row, state) {
         // Der zugehörige Zustandsbutton zum Listeneintrag
         const btnState = row.querySelector('button.btnState');
@@ -324,12 +341,12 @@
     }
 
     /**
-     * Fügt den Eventhandler hinzu, der bei Klick auf dem Zustandsbutton eines Listeneintrags das zugehörige Popupmenü öffnet.
-     *
-     * Darf nur einmal definiert werden, deswegen nicht Teil von addStateColumnToTable().
-     *
-     * @param {State} state Die zur Persistierung der Eintragszustände zu verwendende Zustandsklasse
-     */
+      * Fügt den Eventhandler hinzu, der bei Klick auf dem Zustandsbutton eines Listeneintrags das zugehörige Popupmenü öffnet.
+      *
+      * Darf nur einmal definiert werden, deswegen nicht Teil von addStateColumnToTable().
+      *
+      * @param {State} state Die zur Persistierung der Eintragszustände zu verwendende Zustandsklasse
+      */
     function addBtnStatePopupMenu(state) {
         // Eventhandler für Mausklicks hinzufügen
         document.addEventListener('click', (e) => {
@@ -385,15 +402,15 @@
     }
 
     /**
-     * Schließt ein evtl. geöffnete Popup-Menü für einen Zustandbutton.
-     */
+      * Schließt ein evtl. geöffnete Popup-Menü für einen Zustandbutton.
+      */
     function closePopupMenu() {
         document.querySelectorAll('.btnStatePopupMenu').forEach(node => node.remove());
     }
 
     /**
-     * Korrigiert vorhandene CSS-Regeln in der Liste bezüglich der neuen Spalte und fügt eigenen CSS-Code hinzu
-     */
+      * Korrigiert vorhandene CSS-Regeln in der Liste bezüglich der neuen Spalte und fügt eigenen CSS-Code hinzu
+      */
     function fixAndAddCss() {
         // Vorhandene CSS-Regel für die Tabellenüberschrift bzgl. neuer Spalte vorne anpassen
         const cssHeadlineRuleOld = '.table-fahrt tr:first-of-type td:first-of-type';
@@ -417,15 +434,42 @@
 
     // Hauptcode, ausgeführt, sobald das Fenster vollständig geladen wurde
     window.addEventListener('load', () => {
-        // Initialisiere die Zustandsklasse
-        const state = new State();
+        console.log(`=== PimpMyIBSEList User Script Version ${GM.info.script.version} by Pieter Hollants ===`);
+        console.log('Updates auf: https://github.com/pief/pimpmyibselist/');
 
-        // Füge allen Tabellen die Extraspalte zur Zustandsauswahl hinzu
-        document.querySelectorAll('table').forEach(node => addStateColumnToTable(node, state));
+        if (window.location.pathname.includes('/liste/view_liste.php')) {
+            // Wir befinden uns auf der eigentlichen Listen-Seite
 
-        addBtnStatePopupMenu(state);
+            // UserHash zur Synchronisation der Eintragszustände bereits bekannt?
+            let userHash = localStorage.getItem(localStorageKey_UserHash);
+            if (userHash) {
+                console.log(`Gespeicherter UserHash zur Synchronisation der Eintragszustände: ${userHash}`);
+            } else {
+                console.log('Kann Eintragszustände noch nicht synchronisieren, da noch kein UserHash gespeichert, bitte erst neu einloggen!');
+            }
 
-        // CSS der Seite korrigieren und ergänzen
-        fixAndAddCss();
+            // Initialisiere die Zustandsklasse
+            const state = new State();
+
+            // Füge allen Tabellen die Extraspalte zur Zustandsauswahl hinzu
+            document.querySelectorAll('table').forEach(node => addStateColumnToTable(node, state));
+
+            addBtnStatePopupMenu(state);
+
+            // CSS der Seite korrigieren und ergänzen
+            fixAndAddCss();
+        } else if (window.location.pathname == '/') {
+            // Wir befinden uns auf der Hauptseite
+
+            // Generiere und speichere den aus dem Namen in der Begrüßung gebildeten UserHash für Verwendung auf der Listenseite
+            document.querySelectorAll('.login-greeting').forEach(node => {
+                let userName = node.textContent.trim().replace('Hallo ', '');
+                let userHash = hashString(userName);
+
+                console.log(`Speichere UserHash zur Synchronisation der Eintragszustände: ${userHash}`);
+
+                localStorage.setItem(localStorageKey_UserHash, userHash);
+            });
+        }
     });
 })();
