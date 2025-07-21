@@ -469,6 +469,9 @@
                 console.log(`Speichere UserHash zur Synchronisation der Eintragszustände: ${userHash}`);
 
                 localStorage.setItem(localStorageKey_UserHash, userHash);
+
+                // Userhash hinter dem Loginnamen anzeigen, damit man auch auf Mobilbrowsern erkennt, dass er erkannt wurde
+                node.textContent += `(${userHash})`;
             });
         }
     });
