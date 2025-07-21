@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PimpMyIBSEList
 // @namespace    https://www.hollants.com
-// @version      2025-07-21.2
+// @version      2025-07-22
 // @description  Erweitert die IBSE-Liste um Buttons zur persönlichen Klassifizierung von Listeneinträgen
 // @author       Pieter Hollants
 // @copyright    2025 Pieter Hollants, License: GPL-3.0
@@ -36,18 +36,18 @@
             const char = str.charCodeAt(i);
             hash = (hash << 5) - hash + char;
         }
-        return (hash >>> 0).toString(36).padStart(7, '0');
+        return (hash >>> 0).toString(36).padStart(8, '0');
     }
 
     // Definierte Zustände für Listeneinträge, bestehend aus Label fürs Popup-Menü und zugehöriger CSS-Klasse.
     // Achtung: Es reicht bei Änderungswünschen nicht aus, diese Liste zu modifizieren, es gibt noch andere Stellen wie z.B. CSS-Regeln.
     const states = [
-        { label: 'Noch nicht behandelt', cls: 'unchecked' },
+        { label: 'Unentschieden/Undecided', cls: 'unchecked' },
         { label: 'Prio 1', cls: 'prio1' },
         { label: 'Prio 2', cls: 'prio2' },
         { label: 'Prio 3', cls: 'prio3' },
-        { label: 'Erledigt', cls: 'done' },
-        { label: 'Ignorieren', cls: 'ignore' }
+        { label: 'Erledigt/Done', cls: 'done' },
+        { label: 'Ignorieren/Ignore', cls: 'ignore' }
     ];
 
     // Eigene CSS-Regeln dieses Skripts
@@ -194,19 +194,72 @@
             color: var(--ignore-color);
             text-decoration: line-through;
         }
-        `
+    `
 
     /**
      * Persistierter Speicher für den Zustand von Listeneinträgen.
+     *
+     * Speichert den Zustand sowohl in localStorage als auch pseudonym auf jsonblob.com sofern eine sync_id vorhanden ist.
      */
     class State extends Map {
-        constructor() {
+        // Ja, jeder Hanswurst, der dieses Skript liest, kann hier Daten manipulieren, das ist halt so.
+        static #apiURL = 'https://jsonblob.com/api/jsonBlob/';
+        static #indexBucket = '1396957549806411776';
+
+        constructor(syncID, setSyncState) {
             // Zunächst die Map leer initialisieren
             super()
 
+            // Funktion zum Sync Status setzen
+            this.setSyncState = setSyncState;
+
+            // Die übergebene Sync ID speichern
+            this.syncID = syncID;
+
             // Den Gesamtstate aus dem localStorage des Browsers restaurieren
             const raw = localStorage.getItem(localStorageKey_ListState);
-            const parsed = raw ? JSON.parse(raw) : {};
+            let parsed = raw ? JSON.parse(raw) : {};
+
+            // Falls wir eine Sync ID haben, synchronisieren wir über einen JSON Store
+            if (syncID) {
+                this.setSyncState('Synchronisiere...');
+
+                // Index der Buckets vom Server holen
+                const indexURL = State.#apiURL + State.#indexBucket;
+                this.#safeFetch(indexURL)
+                .then(index => {
+                    if (index[syncID]) {
+                        // Für diese Sync-ID gibt es schon einen Bucket
+                        this.bucketID = index[syncID];
+
+                        // Zustand aus Bucket holen
+                        this.#safeFetch(State.#apiURL + this.bucketID)
+                        .then(data => {
+                            parsed = data;
+
+                            let now = new Date();
+                            this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())}`);
+                        });
+                    } else {
+                        // Neuen Bucket anlegen
+                        this.#safeFetch(State.#apiURL, {
+                            method: 'POST',
+                            body: JSON.stringify({})
+                        })
+                        .then(r => {
+                            // Index aktualisieren
+                            this.bucketID = r.headers.get('Location').split('/').pop();
+                            index[syncID] = this.bucketID;
+                            this.#safeFetch(indexURL, {
+                                method: 'PUT',
+                                body: JSON.stringify(index)
+                            });
+                        });
+                    }
+                });
+            } else {
+                this.setSyncState('Inaktiv - Neu einloggen erforderlich');
+            }
 
             // Zum Setzen muss Map.set() und nicht State.set() verwendet werden, da State.set() persistiert
             for (const [k, v] of Object.entries(parsed)) {
@@ -243,8 +296,25 @@
 
             super.set(key, value);
 
-            // Wir persistieren direkt nach jedem Setzen
-            localStorage.setItem(localStorageKey_ListState, JSON.stringify(Object.fromEntries(this.entries())));
+            // Wir persistieren direkt nach jedem Setzen...
+            let stateStr = JSON.stringify(Object.fromEntries(this.entries()));
+
+            // ...sowohl im localStorage...
+            localStorage.setItem(localStorageKey_ListState, stateStr);
+
+            if (this.syncID) {
+                // ...als auch im Bucket
+                this.#safeFetch(State.#apiURL + this.bucketID, {
+                    method: 'PUT',
+                    body: stateStr
+                })
+                .then(data => {
+                    if (data) {
+                        let now = new Date();
+                        this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())}`);
+                    }
+                })
+            }
 
             return this;
         }
@@ -266,6 +336,53 @@
             // ...und durch die eigene Hashfunktion gejagt.
             return hashString(str);
         }
+
+        /**
+         * Ruft Daten von einer URL ab.
+         *
+         * @param {string} url Die abzurufende URL.
+         */
+        #safeFetch(url, options = {}) {
+            return fetch(url, {
+                ...options,
+                headers: {
+                    'Content-Type': 'application/json; charset=UTF-8'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`${response.status} ${response.statusText || response.json().message}`);
+                }
+                return response.json();
+            })
+            .catch(error => {
+                this.setSyncState(`Fehler beim ${options.method || 'GET'} ${url}: ${error.message || error}!`);
+            });
+        }
+
+        /**
+         * Formatiert eine Datumskomponente auf zwei Stellen mit führender Null.
+         *
+         * @param {mixed} Die Datumskomponente.
+         * @return {string} Ein zweistelliger String.
+         */
+        #pad(obj) {
+            return obj.toString().padStart(2, '0');
+        }
+}
+
+    /**
+     * Zeigt den Synchronisationsstatus in der Zeile des letzten Updates an.
+     *
+     * @param {string} status Der aktuelle Synchronisationsstatus.
+     */
+    function setSyncState(state) {
+        document.querySelectorAll('#F p:first-child').forEach(node => {
+            if (!node.textContent.includes('Letzte Synchronisation')) {
+                node.textContent += '; Letzte Synchronisation/Last sync: ';
+            }
+            node.textContent = node.textContent.replace(/Letzte Synchronisation.*$/, `Letzte Synchronisation/Last sync: ${state}`);
+        });
     }
 
     /**
@@ -311,7 +428,7 @@
       * @param {HTMLTableRowElement} row Der zu aktualisierende Listeneintrag.
       * @param {State} state Die zur Persistierung der Eintragszustände zu verwendende Zustandsklasse
       */
-    function updateRowStyle(row, state) {
+    function updateRowStyle(row) {
         // Der zugehörige Zustandsbutton zum Listeneintrag
         const btnState = row.querySelector('button.btnState');
 
@@ -335,9 +452,6 @@
         if (selectedState !== 'unchecked') {
             row.classList.remove('mod-row');
         }
-
-        // Der Zustands des Buttons wird außerdem mittels der Zustandsklasse persistiert
-        state.set(row, selectedState);
     }
 
     /**
@@ -384,7 +498,10 @@
                         btnState.classList.add(item.cls);
 
                         // Restliche Zellen abhängig vom Buttonzustand anpassen
-                        updateRowStyle(btnState.parentNode.parentNode, state);
+                        updateRowStyle(btnState.parentNode.parentNode);
+
+                        // Der Zustands des Buttons wird außerdem mittels der Zustandsklasse persistiert
+                        state.set(btnState.parentNode.parentNode, item.cls);
                     };
                     menu.appendChild(menuEntry);
                 });
@@ -442,18 +559,14 @@
 
             // UserHash zur Synchronisation der Eintragszustände bereits bekannt?
             let userHash = localStorage.getItem(localStorageKey_UserHash);
-            if (userHash) {
-                console.log(`Gespeicherter UserHash zur Synchronisation der Eintragszustände: ${userHash}`);
-            } else {
-                console.log('Kann Eintragszustände noch nicht synchronisieren, da noch kein UserHash gespeichert, bitte erst neu einloggen!');
-            }
 
             // Initialisiere die Zustandsklasse
-            const state = new State();
+            const state = new State(userHash, setSyncState);
 
             // Füge allen Tabellen die Extraspalte zur Zustandsauswahl hinzu
             document.querySelectorAll('table').forEach(node => addStateColumnToTable(node, state));
 
+            // Aktiviere den Eventhandler für das Zustandsbutton-Popupmenü
             addBtnStatePopupMenu(state);
 
             // CSS der Seite korrigieren und ergänzen
