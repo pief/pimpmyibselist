@@ -227,14 +227,15 @@
                 // Index der Buckets vom Server holen
                 const indexURL = State.#apiURL + State.#indexBucket;
                 this.#safeFetch(indexURL)
-                .then(index => {
+                .then(({data, headers}) => {
+                    let index = data;
                     if (index[syncID]) {
                         // Für diese Sync-ID gibt es schon einen Bucket
                         this.bucketID = index[syncID];
 
                         // Zustand aus Bucket holen
                         this.#safeFetch(State.#apiURL + this.bucketID)
-                        .then(data => {
+                        .then(({data, headers}) => {
                             parsed = data;
 
                             let now = new Date();
@@ -246,9 +247,9 @@
                             method: 'POST',
                             body: JSON.stringify({})
                         })
-                        .then(r => {
+                        .then(({data, headers}) => {
                             // Index aktualisieren
-                            this.bucketID = r.headers.get('Location').split('/').pop();
+                            this.bucketID = headers.get('Location').split('/').pop();
                             index[syncID] = this.bucketID;
                             this.#safeFetch(indexURL, {
                                 method: 'PUT',
@@ -308,7 +309,7 @@
                     method: 'PUT',
                     body: stateStr
                 })
-                .then(data => {
+                .then(({data, headers}) => {
                     if (data) {
                         let now = new Date();
                         this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())}`);
@@ -351,13 +352,16 @@
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`${response.status} ${response.statusText || response.json().message}`);
+                    throw new Error(`${response.status} ${response.statusText}`);
                 }
-                return response.json();
+                return response.json().then(data => ({
+                    data,
+                    headers: response.headers
+                }));
             })
             .catch(error => {
                 this.setSyncState(`Fehler beim ${options.method || 'GET'} ${url}: ${error.message || error}!`);
-            });
+            })
         }
 
         /**
