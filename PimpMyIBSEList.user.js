@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PimpMyIBSEList
 // @namespace    https://www.hollants.com
-// @version      2025-07-22
+// @version      2025-07-22.3
 // @description  Erweitert die IBSE-Liste um Buttons zur persönlichen Klassifizierung von Listeneinträgen
 // @author       Pieter Hollants
 // @copyright    2025 Pieter Hollants, License: GPL-3.0
@@ -239,7 +239,7 @@
                             parsed = data;
 
                             let now = new Date();
-                            this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())}`);
+                            this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())} (${this.syncID} / ${State.#apiURL + this.bucketID})`);
                         });
                     } else {
                         // Neuen Bucket anlegen
@@ -312,7 +312,7 @@
                 .then(({data, headers}) => {
                     if (data) {
                         let now = new Date();
-                        this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())}`);
+                        this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())} (${this.syncID} / ${State.#apiURL + this.bucketID})`);
                     }
                 })
             }
