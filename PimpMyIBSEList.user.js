@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PimpMyIBSEList
 // @namespace    https://www.hollants.com
-// @version      2025-07-22.3
+// @version      2025-07-22.4
 // @description  Erweitert die IBSE-Liste um Buttons zur persönlichen Klassifizierung von Listeneinträgen
 // @author       Pieter Hollants
 // @copyright    2025 Pieter Hollants, License: GPL-3.0
@@ -206,12 +206,12 @@
         static #apiURL = 'https://jsonblob.com/api/jsonBlob/';
         static #indexBucket = '1396957549806411776';
 
-        constructor(syncID, setSyncState) {
+        constructor(syncID, updateCallback, setSyncStateCallback) {
             // Zunächst die Map leer initialisieren
             super()
 
             // Funktion zum Sync Status setzen
-            this.setSyncState = setSyncState;
+            this.setSyncStateCallback = setSyncStateCallback;
 
             // Die übergebene Sync ID speichern
             this.syncID = syncID;
@@ -220,9 +220,14 @@
             const raw = localStorage.getItem(localStorageKey_ListState);
             let parsed = raw ? JSON.parse(raw) : {};
 
+            // Zum Setzen muss Map.set() und nicht State.set() verwendet werden, da State.set() persistiert
+            //for (const [k, v] of Object.entries(parsed)) {
+            //    Map.prototype.set.call(this, k, v);
+            //}
+
             // Falls wir eine Sync ID haben, synchronisieren wir über einen JSON Store
             if (syncID) {
-                this.setSyncState('Synchronisiere...');
+                this.setSyncStateCallback('Synchronisiere...');
 
                 // Index der Buckets vom Server holen
                 const indexURL = State.#apiURL + State.#indexBucket;
@@ -236,10 +241,18 @@
                         // Zustand aus Bucket holen
                         this.#safeFetch(State.#apiURL + this.bucketID)
                         .then(({data, headers}) => {
-                            parsed = data;
+                            console.log(data);
+
+                            // Zum Setzen muss Map.set() und nicht State.set() verwendet werden, da State.set() persistiert
+                            for (const [k, v] of Object.entries(data)) {
+                                Map.prototype.set.call(this, k, v);
+                            }
+
+                            // Callback aufrufen, da sich die Zustände der Listeneinträge nochmal geändert haben können
+                            updateCallback(this);
 
                             let now = new Date();
-                            this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())} (${this.syncID} / ${State.#apiURL + this.bucketID})`);
+                            this.setSyncStateCallback(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())} (${this.syncID} / ${State.#apiURL + this.bucketID})`);
                         });
                     } else {
                         // Neuen Bucket anlegen
@@ -259,12 +272,10 @@
                     }
                 });
             } else {
-                this.setSyncState('Inaktiv - Neu einloggen erforderlich');
-            }
+                this.setSyncStateCallback('Inaktiv - Neu einloggen erforderlich');
 
-            // Zum Setzen muss Map.set() und nicht State.set() verwendet werden, da State.set() persistiert
-            for (const [k, v] of Object.entries(parsed)) {
-                Map.prototype.set.call(this, k, v);
+                // Callback aufrufen, da die Zustände der Listeneinträge noch nicht im Styling reflektiert sind
+                updateCallback(this);
             }
         }
 
@@ -312,7 +323,7 @@
                 .then(({data, headers}) => {
                     if (data) {
                         let now = new Date();
-                        this.setSyncState(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())} (${this.syncID} / ${State.#apiURL + this.bucketID})`);
+                        this.setSyncStateCallback(`${this.#pad(now.getDate())}.${this.#pad(now.getMonth())}.${now.getFullYear()} ${this.#pad(now.getHours())}:${this.#pad(now.getMinutes())} (${this.syncID} / ${State.#apiURL + this.bucketID})`);
                     }
                 })
             }
@@ -360,7 +371,7 @@
                 }));
             })
             .catch(error => {
-                this.setSyncState(`Fehler beim ${options.method || 'GET'} ${url}: ${error.message || error}!`);
+                this.setSyncStateCallback(`Fehler beim ${options.method || 'GET'} ${url}: ${error.message || error}!`);
             })
         }
 
@@ -393,9 +404,8 @@
      * Fügt einer Tabelle der Liste vorne eine extra Spalte mit Zustandsbuttons der jeweiligen Listeneinträge hinzu.
      *
      * @param {HTMLTableElement} table Die anzupassende Tabelle.
-     * @param {State} state Die zur Persistierung des Zustands eines Listeneintrags zu verwendende Zustandsklasse
      */
-    function addStateColumnToTable(table, state) {
+    function addStateColumnToTable(table) {
         // Für die neue Spalte muss für jede Tabellenzeile...
         const rows = Array.from(table.querySelectorAll('tr'));
         rows.forEach((row, index) => {
@@ -407,10 +417,9 @@
             if (index > 0) {
                 // ...erzeugen wir einen neuen Button, der den Zustand des Listeneintrags festlegt.
                 // Der initiale Zustand kommt aus der Zustandsklasse "state", sofern vorhanden.
-                const rowState = state.get(row);
                 const btnState = document.createElement('button');
                 btnState.classList.add('btnState');
-                btnState.classList.add(rowState ? rowState : 'unchecked');
+                btnState.classList.add('unchecked');
 
                 // Füge den Button der neuen Tabellenzelle hinzu
                 tdState.appendChild(btnState);
@@ -418,11 +427,6 @@
 
             // Füge die neue Zelle vor der ersten bereits vorhandenen Zelle ein
             row.insertBefore(tdState, row.firstElementChild);
-
-            // Wenn dies nicht der Tabellenkopf ist: die restlichen Zellen abhängig vom Button-Zustand anpassen
-            if (index > 0) {
-                updateRowStyle(row, state);
-            }
         });
     }
 
@@ -456,6 +460,33 @@
         if (selectedState !== 'unchecked') {
             row.classList.remove('mod-row');
         }
+    }
+
+    /**
+     * Aktualisiert das Styling sämtlicher Listeneinträge.
+     */
+    function updateAllRowStylesFromState(state) {
+        console.log('updateAllRowStyles()');
+        document.querySelectorAll('table').forEach(table => {
+            Array.from(table.querySelectorAll('tr')).forEach((row, index) => {
+                // Jeweilige Kopfzeile ignorieren
+                if (index > 0) {
+                    // Soll-Zustand aus der Zustandsklasse holen
+                    const rowState = state.get(row);
+
+                    // CSS-Klasse des zugehörigen Zustandsbutton zum Listeneintrag setzen
+                    const btnState = row.querySelector('button.btnState');
+                    const other_classes = states.map(item => item.cls).filter(cls => rowState);
+                    other_classes.forEach(cls => {
+                        btnState.classList.remove(cls);
+                    });
+                    btnState.classList.add(rowState ? rowState : 'unchecked');
+
+                    // Den Rest der Zeile aktualisieren
+                    updateRowStyle(row);
+                }
+            });
+        });
     }
 
     /**
@@ -561,20 +592,20 @@
         if (window.location.pathname.includes('/liste/view_liste.php')) {
             // Wir befinden uns auf der eigentlichen Listen-Seite
 
+            // Füge allen Tabellen die Extraspalte zur Zustandsauswahl hinzu
+            document.querySelectorAll('table').forEach(node => addStateColumnToTable(node));
+
+            // CSS der Seite korrigieren und ergänzen
+            fixAndAddCss();
+
             // UserHash zur Synchronisation der Eintragszustände bereits bekannt?
             let userHash = localStorage.getItem(localStorageKey_UserHash);
 
             // Initialisiere die Zustandsklasse
-            const state = new State(userHash, setSyncState);
-
-            // Füge allen Tabellen die Extraspalte zur Zustandsauswahl hinzu
-            document.querySelectorAll('table').forEach(node => addStateColumnToTable(node, state));
+            const state = new State(userHash, updateAllRowStylesFromState, setSyncState);
 
             // Aktiviere den Eventhandler für das Zustandsbutton-Popupmenü
             addBtnStatePopupMenu(state);
-
-            // CSS der Seite korrigieren und ergänzen
-            fixAndAddCss();
         } else if (window.location.pathname == '/') {
             // Wir befinden uns auf der Hauptseite
 
